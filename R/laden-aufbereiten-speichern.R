@@ -22,6 +22,7 @@ library(dplyr)      # Eine Bibliothek aus dem so genannten "Tidyverse",
                     # manchmal allerdings auch frustrierend und kompliziert. 
                     # Ich schreibe in fast alle meine Skripte erst mal "library(tidyverse)"
                     # und habe dann auch dplyr mit drin. 
+library(tidyr)      # Auch aus dem Tidyverse: Tabellenfunktionen
 library(stringr)    # Auch aus dem Tidyverse: String- (Zeichenketten-) Funktionen
 library(lubridate)  # Datumsangaben hin- und herbewegen. (Brauchen wir hier allerdings nicht.)
 
@@ -129,6 +130,69 @@ rki7d <- rki_df %>%
   summarize(Fälle = sum(AnzahlFall)) %>%
   ungroup()
 
+# Bevölkerungszahlen dazuholen und dann: 7-Tage-Inzidenz
 rki_hessen_inzidenz <- rki7d %>% 
-  right_join(hessen_ag, by = "AGS") %>% 
+  right_join(hessen_ag_df, by = "AGS") %>% 
   mutate(inz7t = Fälle / Insgesamt *100000)
+
+#--- DIE AUFGABE ---
+
+# 1. Was tut dieser Codeschnipsel?
+ag_df <- altersgruppen_df %>% 
+  # Wähle die Spalten, die wir brauchen
+  select(AGS,Altersgruppe,Insgesamt) %>% 
+  # Sortiere "Insgesamt"-Zeilen aus
+  filter(Altersgruppe != "Insgesamt") %>% 
+  # Altersgruppen erzeugen - ein wenig REGEX-Zauber: 
+  # Finde alle Ziffern direkt am Anfang des Strings und verwandele sie in eine Zahl
+  mutate(ag = ifelse(str_detect(Altersgruppe,"^unter "),
+                     0,
+                     as.numeric(str_extract(Altersgruppe, "^[0-9]+")))) %>% 
+  # Alte Altersgruppe rausnehmen
+  select(-Altersgruppe) %>% 
+  mutate(Altersgruppe = case_when(
+    ag >= 80 ~ "A80+",
+    ag >= 60 ~ "A60-A79",
+    ag >= 35 ~ "A35-A59",
+    ag >= 15 ~ "A15-A34",
+    ag >= 5  ~ "A05-A14",
+    TRUE     ~ "A00-A04")
+    )
+
+# Jetzt: nach Altersgruppen!
+# Schreib den Codeblock fertig: Gruppieren nach Kreis (AGS)...
+# ...und Altersgruppe!
+#
+# TIPP: Gruppieren kann man auch nach mehr als einer Kategorie!
+rki7d_ag <- rki_df %>% 
+  filter(Meldedatum >= today()-7) %>% 
+  filter(NeuerFall %in% c(0,1)) %>% 
+  select(AGS = IdLandkreis, AnzahlFall, Altersgruppe) # %>%
+
+
+
+# ...und jetzt: Erzeuge eine Tabelle mit der Anzahl der Bewohner nach Kreis und
+# (RKI-)Altersgruppe!
+kreise_ag_df <- ag_df # %>%
+
+
+# Der right_join-Befehl geht auch für mehr als eine Kategorie!
+# Lies dir in der Hilfe durch, wie es geht, und schreibe ein Programm, 
+# das die 7-Tage-Inzidenz nach Kreis ausrechnen
+
+kreise_inz7t_df <- rki7d_ag # %>% 
+  
+
+  # Hänge das hier an: Die Funktion pivot_wider (aus der tidyr-Library)
+  # generiert neue Spalten nach Kategorien (die hier in der Spalte Altersgruppe stecken)
+  # Vergleiche die Tabelle vor und nach dem Pivot-Befehl
+kreise_inz7t_wide_df <- kreise_inz7t_df %>% 
+  pivot_wider(names_from = Altersgruppe, values_from = inz7t) %>% 
+  # Absteigend sortieren: 
+  arrange(desc(`A80+`))
+  # (Aufsteigend wäre: arrange(`A80+`))
+
+# Jetzt: Exportieren!
+# Warum funktioniert der Befehl nicht???
+write.xlsx("rki-ergebnis.xlsx", overwrite=TRUE) 
+  
